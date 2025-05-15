@@ -1,0 +1,47 @@
+name: Run Playwright tests
+
+on:
+  repository_dispatch:
+    types: [run]
+  workflow_dispatch:
+
+jobs:
+    test:
+        runs-on: self-hosted
+        steps:
+          - uses: actions/checkout@v4
+
+          - name: Receive code
+            if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
+            run: |
+              rm -rf tests/*
+              echo "${{ github.event.client_payload.code }}" | base64 --decode > tests/code.spec.ts
+
+          - name: Run tests
+            env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                WOPEE_API_KEY: ${{ secrets.WOPEE_API_KEY }}
+                WOPEE_API_URL: ${{ vars.WOPEE_API_URL || 'https://api.wopee.io' }}
+                WOPEE_PROJECT_UUID: ${{ vars.WOPEE_PROJECT_UUID }}
+                WOPEE_PROJECT_URL: ${{ vars.WOPEE_PROJECT_URL || 'https://dronjo.wopee.io' }}
+                WOPEE_SCREENSHOT_VALIDATION_ENABLED: "true"
+                WOPEE_BRANCH_NAME: master
+                WOPEE_CI_BUILD_ID: build-123
+                WOPEE_CUSTOM_TAGS: custom-tag
+                WOPEE_ENABLE_SOFT_ASSERT: "true"
+                WOPEE_PIXEL_TO_PIXEL_DIFF_TOLERANCE: "0.1"
+                WOPEE_COLLECT_PAGE_CONTENT: "true"
+            run: |
+                npm install --prefer-offline --no-audit
+                npx playwright install ffmpeg
+                npm run test
+                
+          - name: Upload test results
+            if: always()
+            uses: actions/upload-artifact@v4
+            with:
+              name: playwright-results
+              path: |
+                test-results
+                playwright-report
+              retention-days: 3
